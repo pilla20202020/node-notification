@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",            // or newer
+    "module": "ESNext",            // crucial for ESM
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "outDir": "dist",
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src/**/*"]
+}

@@ -1,0 +1,23 @@
+{
+  "name": "notification-microservice",
+  "version": "1.0.0",
+  "description": "Fastify microservice to consume notifications from Redis and process them",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node-dev --respawn --transpile-only --loader ts-node/esm src/index.ts"
+  },
+  "dependencies": {
+    "fastify": "^4.0.0",
+    "ioredis": "^5.0.0",
+    "axios": "^1.0.0",
+    "dotenv": "^16.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.0.0"
+  }
+}
