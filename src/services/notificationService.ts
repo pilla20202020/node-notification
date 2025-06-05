@@ -1,6 +1,6 @@
 import Redis from 'ioredis';
 import axios from 'axios';
-import { retryWithExponentialBackoff } from '../utils/retryHelper'; // ← note: no “.js” here
+import { retryWithExponentialBackoff } from '../utils/retryHelper';
 import dotenv from 'dotenv';
 
 dotenv.config();

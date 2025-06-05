@@ -1,7 +1,3 @@
-/**
- * Exponential backoff retry helper. Attempts the asyncFn up to maxAttempts.
- * Delay between attempts: baseDelay * 2^(attempt - 1) ms.
- */
 export async function retryWithExponentialBackoff<T>(
   asyncFn: () => Promise<T>,
   maxAttempts: number,

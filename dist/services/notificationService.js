@@ -3,8 +3,7 @@ import axios from 'axios';
 import { retryWithExponentialBackoff } from '../utils/retryHelper.js';
 import dotenv from 'dotenv';
 dotenv.config();
-const { REDIS_HOST = '127.0.0.1', REDIS_PORT = '6379', REDIS_PASSWORD, REDIS_CHANNEL = 'notifications', LARAVEL_API_BASE_URL, MAX_RETRY_ATTEMPTS = '3' // keep as string for parseInt
- } = process.env;
+const { REDIS_HOST = '127.0.0.1', REDIS_PORT = '6379', REDIS_PASSWORD, REDIS_CHANNEL = 'notifications', LARAVEL_API_BASE_URL, MAX_RETRY_ATTEMPTS = '3' } = process.env;
 const redis = new Redis({
     host: REDIS_HOST,
     port: parseInt(REDIS_PORT, 10),
@@ -30,11 +29,12 @@ async function processNotification(message) {
         console.log(`✅ Notification #${notification_id} marked as ${status}`);
     }
     catch (error) {
-        console.error(`❌ Failed to update Laravel for notification #${notification_id} after ${retries} attempts`, error.message);
+        console.error(`❌ Failed to update Laravel for notification #${notification_id} after ${retries} attempts:`, error.message);
     }
 }
 function subscribeToNotificationsChannel() {
-    redis.subscribe(REDIS_CHANNEL)
+    redis
+        .subscribe(REDIS_CHANNEL)
         .then((count) => {
         console.log(`✅ Subscribed to Redis channel: ${REDIS_CHANNEL} (${count})`);
     })

@@ -1,16 +1,31 @@
 {
   "compilerOptions": {
+    // 1. Emit JavaScript targeting at least ES2020 (or newer)
     "target": "ES2020",
-    "module": "ESNext",           
-    "moduleResolution": "node",   
+
+    // 2. Use Node.js–style ESM resolution and output
+    //    (this causes TSC to append “.js” on import paths in the emitted .js files)
+    "module": "Node16",
+    "moduleResolution": "node16",
+
+    // 3. Standard flags
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
+
+    // 4. Where to put compiled output
     "outDir": "./dist",
     "rootDir": "./src",
+
     "skipLibCheck": true,
-    "strict": true,
-    // …any other flags you need…
+    "strict": true
   },
+
+  // 5. Ensure ts-node also knows you want ESM
+  "ts-node": {
+    "esm": true,
+    "experimentalSpecifierResolution": "node"
+  },
+
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }
