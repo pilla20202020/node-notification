@@ -1,6 +1,6 @@
 import Fastify from 'fastify';
 import dotenv from 'dotenv';
-import { subscribeToNotificationsChannel } from './services/notificationService.js'; 
+import { subscribeToNotificationsChannel } from './services/notificationService.js';
 
 dotenv.config();
 

@@ -1,14 +1,16 @@
 {
   "compilerOptions": {
-    "target": "ES2020",            // or newer
-    "module": "ESNext",            // crucial for ESM
-    "moduleResolution": "node",
+    "target": "ES2020",
+    "module": "ESNext",           
+    "moduleResolution": "node",   
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "strict": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
     "skipLibCheck": true,
-    "outDir": "dist",
-    "forceConsistentCasingInFileNames": true
+    "strict": true,
+    // …any other flags you need…
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
 }
