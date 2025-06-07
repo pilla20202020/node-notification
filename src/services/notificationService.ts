@@ -1,83 +1,82 @@
 import Redis from 'ioredis';
 import axios from 'axios';
+import NotificationRepository, { NotificationRow } from '../repos/notificationRepository';
 import { retryWithExponentialBackoff } from '../utils/retryHelper';
-import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 
-dotenv.config();
+export default class NotificationService {
+  /* … your constructor … */
 
-const {
-  REDIS_HOST = '127.0.0.1',
-  REDIS_PORT = '6379',
-  REDIS_PASSWORD,
-  REDIS_CHANNEL = 'notifications',
-  LARAVEL_API_BASE_URL,
-  MAX_RETRY_ATTEMPTS = '3'
-} = process.env;
-
-const redis = new Redis({
-  host: REDIS_HOST,
-  port: parseInt(REDIS_PORT, 10),
-  password: REDIS_PASSWORD || undefined,
-});
-
-interface NotificationMessage {
-  notification_id: number;
-  user_id: number;
-  type: string;
-  payload: Record<string, any>;
-  scheduled_at?: string;
-}
-
-async function processNotification(message: string): Promise<void> {
-  let parsed: NotificationMessage;
-
-  try {
-    parsed = JSON.parse(message);
-  } catch (err: unknown) {
-    console.error('❌ Failed to parse message as JSON:', (err as Error).message);
-    return;
-  }
-
-  const { notification_id, user_id, type, payload, scheduled_at } = parsed;
-  console.log(`📩 Processing notification #${notification_id} for user ${user_id}`);
-  console.log(`Type: ${type}, Payload:`, payload, `Scheduled At: ${scheduled_at}`);
-
-  const randomFail = Math.random() < 0.2;
-  const status = randomFail ? 'failed' : 'sent';
-  const retries = parseInt(MAX_RETRY_ATTEMPTS, 10);
-
-  try {
-    await retryWithExponentialBackoff(
-      () =>
-        axios.put(
-          `${LARAVEL_API_BASE_URL}/api/notifications/${notification_id}/status`,
-          { status }
-        ),
-      retries
-    );
-    console.log(`✅ Notification #${notification_id} marked as ${status}`);
-  } catch (error: unknown) {
-    console.error(
-      `❌ Failed to update Laravel for notification #${notification_id} after ${retries} attempts:`,
-      (error as Error).message
-    );
-  }
-}
-
-function subscribeToNotificationsChannel(): void {
-  redis
-    .subscribe(REDIS_CHANNEL)
-    .then((count) => {
-      console.log(`✅ Subscribed to Redis channel: ${REDIS_CHANNEL} (${count})`);
-    })
-    .catch((err: Error) => {
-      console.error('❌ Redis subscribe error:', err.message);
+  async publishNotification(input: {
+    user_id: number;
+    type: string;
+    payload: Record<string, any>;
+    scheduled_at?: string;
+  }): Promise<NotificationRow> {
+    const notif = await this.repo.create(input);              // ← await here
+    const msg = JSON.stringify({
+      notification_id: notif.id,
+      user_id: notif.user_id,
+      type: notif.type,
+      payload: JSON.parse(notif.payload),
+      scheduled_at: notif.scheduled_at,
     });
+    await this.redisPub.publish(this.channel, msg);
+    return notif;
+  }
 
-  redis.on('message', async (channel: string, message: string) => {
-    console.log(`📨 New message on ${channel}:`, message);
-    await processNotification(message);
+  async handleMessage(message: string) {
+    /* … parsing and skip test … */
+
+    try {
+      await retryWithExponentialBackoff(
+        () =>
+          axios.put(
+            `${this.laravelBase}/api/notifications/${notification_id}/status`,
+            { status: 'sent' }
+          ),
+        this.maxRetries
+      );
+      this.repo.updateStatus(notification_id, 'sent');
+    } catch {
+      const attempts = await this.repo.incrementAttempts(notification_id);  // ← await here
+      if (attempts < this.maxRetries) {
+        await this.redisPub.publish(this.channel, message);
+      } else {
+        this.repo.updateStatus(notification_id, 'failed');
+      }
+    }
+  }
+}
+
+// ——— SMOKE TEST ———
+const __filename = fileURLToPath(import.meta.url);
+const isMain = process.argv[1]?.endsWith(__filename);
+
+if (isMain) {
+  (async () => {
+    const repo = new NotificationRepository();
+    await (repo as any).ready;
+    const redis = new Redis();
+    const svc = new NotificationService(
+      repo,
+      redis,
+      'http://localhost:8000',
+      'notifications',
+      1
+    );
+
+    console.log('✨ Smoke: publishing a dummy notification...');
+    const notif = await svc.publishNotification({
+      user_id: 999,
+      type: 'connection_test',
+      payload: { test: true },
+    });
+    console.log('→ created:', notif);
+    process.exit(0);
+  })().catch(err => {
+    console.error(err);
+    process.exit(1);
   });
 }
-
-export { subscribeToNotificationsChannel };
