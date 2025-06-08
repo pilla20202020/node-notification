@@ -2,11 +2,27 @@ import Redis from 'ioredis';
 import axios from 'axios';
 import NotificationRepository, { NotificationRow } from '../repos/notificationRepository';
 import { retryWithExponentialBackoff } from '../utils/retryHelper';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
 
 export default class NotificationService {
-  /* … your constructor … */
+  private repo: NotificationRepository;
+  private redisPub: Redis.Redis;
+  private laravelBase: string;
+  private channel: string;
+  private maxRetries: number;
+
+  constructor(
+    repo: NotificationRepository,
+    redisPub: Redis.Redis,
+    laravelBase: string,
+    channel: string,
+    maxRetries: number
+  ) {
+    this.repo = repo;
+    this.redisPub = redisPub;
+    this.laravelBase = laravelBase.replace(/\/$/, '');
+    this.channel = channel;
+    this.maxRetries = maxRetries;
+  }
 
   async publishNotification(input: {
     user_id: number;
@@ -14,7 +30,7 @@ export default class NotificationService {
     payload: Record<string, any>;
     scheduled_at?: string;
   }): Promise<NotificationRow> {
-    const notif = await this.repo.create(input);              // ← await here
+    const notif = await this.repo.create(input);
     const msg = JSON.stringify({
       notification_id: notif.id,
       user_id: notif.user_id,
@@ -27,7 +43,30 @@ export default class NotificationService {
   }
 
   async handleMessage(message: string) {
-    /* … parsing and skip test … */
+    let parsed: {
+      notification_id: number;
+      user_id: number;
+      type: string;
+      payload: Record<string, any>;
+      scheduled_at?: string;
+    };
+
+    try {
+      parsed = JSON.parse(message);
+    } catch {
+      console.error('❌ Invalid JSON in message, discarding:', message);
+      return;
+    }
+
+    if (parsed.notification_id === 0 && parsed.type === 'connection_test') {
+      console.log('⚠️ Skipping connection test message');
+      return;
+    }
+
+    const { notification_id, user_id, type, payload } = parsed;
+
+    console.log(`📨 Consuming notification #${notification_id}`);
+    console.log(`📤 Simulating send → User #${user_id}, Type: ${type}, Payload:`, payload);
 
     try {
       await retryWithExponentialBackoff(
@@ -38,45 +77,20 @@ export default class NotificationService {
           ),
         this.maxRetries
       );
-      this.repo.updateStatus(notification_id, 'sent');
-    } catch {
-      const attempts = await this.repo.incrementAttempts(notification_id);  // ← await here
+
+      await this.repo.updateStatus(notification_id, 'sent');
+      console.log(`✅ Laravel updated: Notification #${notification_id} marked as "sent"`);
+    } catch (err) {
+      const attempts = await this.repo.incrementAttempts(notification_id);
+      console.error(`❌ Error updating Laravel for #${notification_id}. Attempt: ${attempts}`);
+
       if (attempts < this.maxRetries) {
+        console.log(`🔁 Retrying: re-publishing #${notification_id}`);
         await this.redisPub.publish(this.channel, message);
       } else {
-        this.repo.updateStatus(notification_id, 'failed');
+        await this.repo.updateStatus(notification_id, 'failed');
+        console.error(`💀 Max retries reached. Notification #${notification_id} marked as "failed"`);
       }
     }
   }
-}
-
-// ——— SMOKE TEST ———
-const __filename = fileURLToPath(import.meta.url);
-const isMain = process.argv[1]?.endsWith(__filename);
-
-if (isMain) {
-  (async () => {
-    const repo = new NotificationRepository();
-    await (repo as any).ready;
-    const redis = new Redis();
-    const svc = new NotificationService(
-      repo,
-      redis,
-      'http://localhost:8000',
-      'notifications',
-      1
-    );
-
-    console.log('✨ Smoke: publishing a dummy notification...');
-    const notif = await svc.publishNotification({
-      user_id: 999,
-      type: 'connection_test',
-      payload: { test: true },
-    });
-    console.log('→ created:', notif);
-    process.exit(0);
-  })().catch(err => {
-    console.error(err);
-    process.exit(1);
-  });
 }
